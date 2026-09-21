@@ -269,9 +269,55 @@ async function runMultiplayerTest() {
     }));
     await new Promise(r => setTimeout(r, 400));
 
-    // 验证获胜结算广播
+    // 验证获胜结算广播 (弃牌结算)
     const showdownMsg = msgA.find(m => m.type === 'SHOWDOWN_PAYOUT');
     assert(showdownMsg !== undefined, '对手弃牌后成功收到获胜结算 SHOWDOWN_PAYOUT');
+
+    // 动作 5: 开启下一手完整摊牌比牌测试 (验证 River 摊牌结算不卡死)
+    console.log('\n--- 测试【河牌圈下注完成进入 SHOWDOWN 摊牌比牌不卡死】 ---');
+    // 等待下一手发牌
+    await new Promise(r => setTimeout(r, 5200));
+    const nextHandState = msgA.filter(m => m.type === 'GAME_STATE' && m.currentStreet === 'PRE_FLOP').pop();
+    assert(nextHandState !== undefined, '5秒后自动顺利进入新一手牌 (PRE_FLOP)');
+
+    // 双方持续过牌至河牌圈摊牌
+    let curState = nextHandState;
+    const streetOrder = ['FLOP', 'TURN', 'RIVER', 'SHOWDOWN'];
+    for (let sIdx = 0; sIdx < 3; sIdx++) {
+        const expectedNext = streetOrder[sIdx];
+        // 两位玩家轮流行动直到阶段推进
+        let loopLimit = 0;
+        while (curState.currentStreet !== expectedNext && loopLimit < 6) {
+            loopLimit++;
+            const tId = curState.currentTurnPlayerId;
+            const c = (tId === roomA.playerId) ? clientA : clientB;
+            const myRoundBet = curState.players.find(p => p.id === tId)?.currentRoundBet || 0;
+            const toCall = Math.max(0, curState.highestRoundBet - myRoundBet);
+            c.send(JSON.stringify({
+                type: 'PLAYER_ACTION',
+                action: toCall > 0 ? 'call' : 'check',
+                amount: 0
+            }));
+            await new Promise(r => setTimeout(r, 250));
+            curState = msgA.filter(m => m.type === 'GAME_STATE').pop();
+        }
+        assert(curState.currentStreet === expectedNext, `顺利推进至 【${expectedNext}】 阶段`);
+    }
+
+    // 河牌圈最后两人过牌触发最终 SHOWDOWN
+    for (let i = 0; i < 2; i++) {
+        const tId = curState.currentTurnPlayerId;
+        if (tId !== -1) {
+            const c = (tId === roomA.playerId) ? clientA : clientB;
+            c.send(JSON.stringify({ type: 'PLAYER_ACTION', action: 'check' }));
+            await new Promise(r => setTimeout(r, 250));
+            curState = msgA.filter(m => m.type === 'GAME_STATE').pop();
+        }
+    }
+
+    assert(curState.currentStreet === 'SHOWDOWN', '河牌圈下注完成后顺利进入【SHOWDOWN】比牌阶段，无卡死！');
+    const riverShowdownMsg = msgA.filter(m => m.type === 'SHOWDOWN_PAYOUT').pop();
+    assert(riverShowdownMsg !== undefined && riverShowdownMsg.payouts.length > 0, '成功计算派彩并广播 SHOWDOWN_PAYOUT，赢家与牌力完整生成！');
 
     // 9. 关闭连接与服务器
     clientA.close();
@@ -281,7 +327,7 @@ async function runMultiplayerTest() {
     await new Promise(resolve => httpServer.close(resolve));
     await new Promise(resolve => wss.close(resolve));
 
-    console.log('\n🎉 ALL MULTIPLAYER TESTS PASSED! 局域网联机与一键补齐、玩家加注/下注所有测试完全通过！\n');
+    console.log('\n🎉 ALL MULTIPLAYER TESTS PASSED! 局域网联机、下注推进与河牌圈比牌结算所有测试完全通过！\n');
     process.exit(0);
 }
 

@@ -128,6 +128,7 @@ class ServerRoomGame {
         this.communityCards = [];
         this.highestRoundBet = 0;
         this.minRaise = this.room.bigBlind;
+        this.potManager.reset();
 
         this.players.forEach(p => {
             p.holeCards = [];
@@ -398,10 +399,16 @@ class ServerRoomGame {
                 return;
         }
 
-        this.currentTurnIndex = this.dealerIndex;
-        do {
-            this.currentTurnIndex = (this.currentTurnIndex + 1) % this.players.length;
-        } while (this.players[this.currentTurnIndex].folded || this.players[this.currentTurnIndex].allIn);
+        if (canActPlayers.length > 0) {
+            this.currentTurnIndex = this.dealerIndex;
+            let attempts = 0;
+            do {
+                this.currentTurnIndex = (this.currentTurnIndex + 1) % this.players.length;
+                attempts++;
+            } while ((this.players[this.currentTurnIndex].folded || this.players[this.currentTurnIndex].allIn) && attempts < this.players.length * 2);
+        } else {
+            this.currentTurnIndex = -1;
+        }
 
         this.broadcastGameState();
 
@@ -414,6 +421,7 @@ class ServerRoomGame {
 
     handleLoneSurvivor(winner) {
         this.currentStreet = 'SHOWDOWN';
+        this.currentTurnIndex = -1;
         const totalPot = this.potManager.getTotalAmount(this.players);
         winner.chips += totalPot;
 
@@ -434,19 +442,22 @@ class ServerRoomGame {
 
     showdown() {
         this.currentStreet = 'SHOWDOWN';
+        this.currentTurnIndex = -1;
         this.room.broadcastLog(`=== 进入摊牌比牌阶段 (SHOWDOWN) ===`, 'system');
 
         const activePlayers = this.players.filter(p => !p.folded);
+        const playerHands = {};
         activePlayers.forEach(p => {
             p.showCards = true;
-            const full7 = [...this.communityCards, ...p.holeCards];
-            p.bestHand = HandEvaluator.evaluate7(full7);
-            this.room.broadcastLog(`【${p.name}】亮出手牌: ${p.holeCards.map(c => c.toString()).join(' ')} (${p.bestHand.desc})`);
+            const fullCards = [...this.communityCards, ...p.holeCards];
+            p.bestHand = HandEvaluator.getBestHand(fullCards);
+            playerHands[p.id] = p.bestHand;
+            this.room.broadcastLog(`【${p.name}】亮出手牌: ${p.holeCards.map(c => c.toString()).join(' ')} (${p.bestHand ? p.bestHand.desc : ''})`);
         });
 
-        // 构造底池并结算
-        this.potManager.buildPots(this.players);
-        const payouts = this.potManager.distributePots(this.players, this.communityCards);
+        // 重新核算主池与边池并派彩
+        const pots = this.potManager.calculatePots(this.players);
+        const payouts = this.potManager.distributePots(pots, playerHands, this.players);
 
         payouts.forEach(p => {
             const winNames = p.winners.map(w => `${w.player.name} (+$${w.winAmount})`).join(', ');

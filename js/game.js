@@ -1059,6 +1059,11 @@ class TexasHoldemGame {
         const net = window.network;
         const myId = (net && net.myPlayerId !== null) ? net.myPlayerId : 0;
 
+        // 新一手牌开始时自动隐藏结算横幅
+        if (state.currentStreet === 'PRE_FLOP') {
+            this.ui.hideWinnerBanner();
+        }
+
         // 1. 公共牌
         this.communityCards = (state.communityCards || []).map(c => new Card(c.rank, c.suit));
         this.ui.renderCommunityCards(this.communityCards);
