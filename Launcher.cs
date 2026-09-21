@@ -107,12 +107,19 @@ class TexasHoldemLauncher {
                 if (e.Data != null) {
                     Console.WriteLine(e.Data);
 
-                    // 检测到服务器就绪输出后自动唤起浏览器
-                    if (!browserOpened && (e.Data.Contains("http://localhost") || e.Data.Contains("德州扑克局域网对战联机服务器已启动"))) {
+                    // 检测到服务器就绪输出后自动唤起浏览器 (提取实际监听端口)
+                    if (!browserOpened && e.Data.Contains("http://localhost:")) {
                         lock (lockObj) {
                             if (!browserOpened) {
                                 browserOpened = true;
-                                OpenBrowser("http://localhost:3000");
+                                string targetUrl = "http://localhost:3000";
+                                int idx = e.Data.IndexOf("http://localhost:");
+                                if (idx >= 0) {
+                                    string rest = e.Data.Substring(idx).Trim();
+                                    string[] parts = rest.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                                    if (parts.Length > 0) targetUrl = parts[0];
+                                }
+                                OpenBrowser(targetUrl);
                             }
                         }
                     }
@@ -133,7 +140,7 @@ class TexasHoldemLauncher {
 
             // 超时保底打开浏览器 (以防未截获到特定关键字)
             Thread bgCheck = new Thread(() => {
-                Thread.Sleep(1500);
+                Thread.Sleep(2500);
                 lock (lockObj) {
                     if (!browserOpened) {
                         browserOpened = true;

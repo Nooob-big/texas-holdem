@@ -962,10 +962,24 @@ function handleClientMessage(ws, data) {
     }
 }
 
-// 6. 启动服务器并友好输出局域网地址
+// 6. 启动服务器并友好输出局域网地址 (支持端口被占用时自动切换备用端口)
 function startServer(port = PORT) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+        const onError = (err) => {
+            if (err.code === 'EADDRINUSE') {
+                console.warn(`\n[提示] 默认端口 ${port} 已被占用（可能是上一次游戏未完全退出或有其他程序占用）。`);
+                console.log(`正在自动尝试备用端口 ${port + 1}...`);
+                httpServer.removeListener('error', onError);
+                resolve(startServer(port + 1));
+            } else {
+                reject(err);
+            }
+        };
+
+        httpServer.once('error', onError);
+
         httpServer.listen(port, () => {
+            httpServer.removeListener('error', onError);
             const localIPs = getLocalIPAddresses();
             console.log('\n' + '='.repeat(64));
             console.log('  ♠ 德州扑克局域网对战联机服务器已启动 ♠');
