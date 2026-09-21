@@ -43,6 +43,34 @@ class TexasHoldemLauncher {
             return;
         }
 
+        // 自动检测并补齐 node_modules 依赖 (首次克隆/下载时)
+        string nodeModulesDir = Path.Combine(baseDir, "node_modules");
+        string wsDir = Path.Combine(nodeModulesDir, "ws");
+        if (!Directory.Exists(nodeModulesDir) || !Directory.Exists(wsDir)) {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine("================================================================");
+            Console.WriteLine("  首次运行检测：正在自动安装项目必要依赖 (npm install)...");
+            Console.WriteLine("================================================================");
+            Console.ResetColor();
+            try {
+                ProcessStartInfo npmPsi = new ProcessStartInfo {
+                    FileName = "cmd.exe",
+                    Arguments = "/c npm install",
+                    WorkingDirectory = baseDir,
+                    UseShellExecute = false
+                };
+                Process npmProcess = Process.Start(npmPsi);
+                if (npmProcess != null) npmProcess.WaitForExit();
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("✅ 依赖安装成功！\n");
+                Console.ResetColor();
+            } catch (Exception ex) {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("⚠️ 自动安装依赖失败: " + ex.Message + "，请手动在终端执行 npm install。");
+                Console.ResetColor();
+            }
+        }
+
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.WriteLine("================================================================");
         Console.WriteLine("  ♠ 德州扑克 (Texas Hold'em) - 局域网联机服务端 ♠");

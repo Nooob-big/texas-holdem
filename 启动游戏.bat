@@ -17,6 +17,13 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+if not exist node_modules (
+    echo [提示] 检测到首次运行，正在自动安装必要依赖 (npm install)...
+    call npm install
+    echo 依赖安装完成！
+    echo.
+)
+
 echo 正在启动局域网对战服务端并打开浏览器...
 echo 游戏运行期间请保持本窗口打开，按 Ctrl+C 可退出。
 echo.
