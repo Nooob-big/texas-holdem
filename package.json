@@ -1,0 +1,13 @@
+{
+  "name": "texas-holdem-lan",
+  "version": "1.0.0",
+  "description": "Texas Hold'em Poker with LAN Multiplayer and One-Click Bot Fill",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/test_dom_load.js && node tests/test_evaluator.js && node tests/test_simulation.js && node tests/test_multiplayer.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
